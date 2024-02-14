@@ -471,8 +471,8 @@ ShotMap(ShotTeam, 'against', 'Left', 'From Corner')
 
 ShotMap <- function(Data, Which, Where, From){
   
-  shotmapxgcolors <- c("#192780","#2a5d9f","#40a7d0","#87cdcf","#e7f8e6","#f4ef95","#fde960",
-                       "#f5b94d","#ed8a37","#d54f1b","#bf0000","#7f0000")
+  shotmapxgcolors <- c("#192780","#2a5d9f","#40a7d0","#87cdcf","#e7f8e6","#f4ef95",
+                       "#fde960","#f5b94d","#ed8a37","#d54f1b","#bf0000","#7f0000")
   
   DBase <- Data %>%
     dplyr::filter(play_pattern.name == From) 
@@ -483,6 +483,7 @@ ShotMap <- function(Data, Which, Where, From){
   Blocked <- DBase %>% dplyr::filter(shot.outcome.name == 'Blocked')
   OffTarget <- DBase %>% dplyr::filter(shot.outcome.name == 'Off T')
   Saved <- DBase %>% dplyr::filter(shot.outcome.name == 'Saved')
+  
   
   xG <- DBase %>% dplyr::select(shot.statsbomb_xg)
   ExpectedGoal <- round(sum(xG), digits = 2)

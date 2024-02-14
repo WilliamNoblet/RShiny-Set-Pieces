@@ -1,7 +1,10 @@
 library(dplyr)
 library(plotly)
 library(StatsBombR)
-
+library(shiny)
+library(shinydashboard)
+library(shinyjs)
+library(shinythemes)
 
 
 ui <- shiny::fluidPage(
@@ -58,6 +61,9 @@ ui <- shiny::fluidPage(
                                     fluidRow(column(width = 6, h2('Depuis les corners côtés gauche', align = 'left'), plotlyOutput('corner_left_def')),
                                              column(width = 6, h2('Depuis les corners côtés droit', align = 'left'), plotlyOutput('corner_right_def'))),
                                     
+                                    fluidRow(column(width = 6, h2('Depuis les corners côtés gauche', align = 'left'), plotlyOutput('shot_corner_left_def')),
+                                             column(width = 6, h2('Depuis les corners côtés droit', align = 'left'), plotlyOutput('shot_corner_rigth_def'))),
+                                    
                                     h2(paste0('Comparaison xG/Coup franc indirect défensif')),
                                     
                                     fluidRow(column(width = 6, plotlyOutput('comparaison_ifk_def'))),
@@ -78,6 +84,9 @@ ui <- shiny::fluidPage(
                                     fluidRow(column(width = 6, h2('Depuis les corners côtés gauche', align = 'left'), plotlyOutput('corner_left_off')),
                                              column(width = 6, h2('Depuis les corners côtés droit', align = 'left'), plotlyOutput('corner_right_off'))),
                                     
+                                    fluidRow(column(width = 6, h2('Depuis les corners côtés gauche', align = 'left'), plotlyOutput('shot_corner_left_off')),
+                                             column(width = 6, h2('Depuis les corners côtés droit', align = 'left'), plotlyOutput('shot_corner_rigth_off'))),
+                                    
                                     h2(paste0('Comparaison xG/Coup franc indirect offensif')),
                                     
                                     fluidRow(column(width = 6, plotlyOutput('comparaison_ifk_off'))),
@@ -96,12 +105,45 @@ ui <- shiny::fluidPage(
                                     
                                     fluidRow(column(width = 6, h2('Comparaison des % de duels aériens gagnés', align = 'left'), plotlyOutput('comparaison_aerial_pourc'))),
                                     
-                                    fluidRow(column(width = 6, h2('Tableau de duels gagnés', align = 'left'), dataTableOutput('table_aerial')))
+                                    
+                      downloadButton('describe_download',"Download Report",class="butt" ),br(),
+                      tags$head(tags$style(".butt{background-color:#230682;} .butt{color: #e6ebef;}")),
+                      radioButtons('format', 'Document format', c('PDF', 'Word'),
+                                   inline = TRUE)
                     )
   )
 )
 
 server <- function(input, output, session){
+  
+  if (!require("dplyr")) install.packages("dplyr")
+  library(dplyr)
+  if (!require("plotly")) install.packages("plotly")
+  library(plotly)
+  if (!require("openxlsx")) install.packages("openxlsx")
+  library(openxlsx)
+  library(StatsBombR)
+  
+  FreeCompetitions <- FreeCompetitions()
+  
+  Comp <- FreeCompetitions() %>%
+    dplyr::filter(country_name == 'International' 
+                  & competition_name == 'FIFA World Cup'
+                  & season_name == '2022')
+  
+  Matches <- FreeMatches(Comp)
+  
+  StatsBombData <- get.matchFree(Matches[1,])
+  
+  for(i in seq(from = 2, to = nrow(Matches))){
+    StatsBombData <- dplyr::bind_rows(StatsBombData, get.matchFree(Matches[i,]))
+  }
+  
+  StatsBombData = allclean(StatsBombData)
+  StatsBombData = cleanlocations(StatsBombData)
+  
+  
+  
   
   InfoMatches <- reactive({
     Matches %>%
@@ -296,8 +338,8 @@ server <- function(input, output, session){
   
   
   ShotTeam <- reactive({
-    EventsTeam() %>%
-      dplyr::filter(team.name == 'Argentina') %>%
+    StatsBombData %>%
+      #dplyr::filter(team.name == 'Argentina') %>%
       #dplyr::left_join(IndexMatches(), by = 'match_id') %>%
       dplyr::filter(type.name == 'Shot') %>%
       dplyr::filter(shot.type.name != 'Penalty' | is.na(shot.type.name)) %>%
@@ -305,9 +347,12 @@ server <- function(input, output, session){
       dplyr::mutate(technique = '') %>%
       dplyr::mutate(formes = '') %>%
       dplyr::mutate(color = ifelse(shot.outcome.name == 'Goal', '#109618', '#dc3912')) %>%
-      dplyr::mutate(formes = ifelse(shot.body_part.name == 'Head', 'circle', 'hexagon'))
-    
+      dplyr::mutate(formes = ifelse(shot.body_part.name == 'Head', 'circle', 
+                                    ifelse( shot.type.name == 'Free Kick', 'square', 'hexagon'))) %>%
+      dplyr::mutate(technique = ifelse(shot.body_part.name == 'Head', 'Head', 
+                                       ifelse( shot.type.name == 'Free Kick', 'Free Kick', 'Foot/Other')))
   })
+  
   
   InfosCorner <- reactive({
     Events() %>%
@@ -337,7 +382,7 @@ server <- function(input, output, session){
       dplyr::filter(corner == 'Right' & time_diff < 20 |corner == 'Left' & time_diff < 20 |corner == 'Free Kick' & time_diff < 15 )
   })
   
-  ShotMap <- function(WhichTeam, From, Where){
+  ShotMap <- function(WhichTeam, Where, From){
     
     shotmapxgcolors <- c("#192780","#2a5d9f","#40a7d0","#87cdcf","#e7f8e6","#f4ef95","#fde960",
                          "#f5b94d","#ed8a37","#d54f1b","#bf0000","#7f0000")
@@ -345,23 +390,26 @@ server <- function(input, output, session){
     if (WhichTeam == 'For'){
       DataSetPieces <- reactive({
         ShotTeamSetPieces() %>%
-          dplyr::filter(possession_team.name %in% input$Team) %>%
+          dplyr::filter(team.name %in% input$Team) %>%
           dplyr::filter(play_pattern.name == From) %>%
           dplyr::filter(corner == Where)
       })
     } else {
       DataSetPieces <- reactive({
         ShotTeamSetPieces() %>%
-          dplyr::filter(possession_team.name != input$Team) %>%
+          dplyr::filter(team_vs.name %in% input$Team) %>%
           dplyr::filter(play_pattern.name == From) %>%
           dplyr::filter(corner == Where)
       })
     }
     
-    Goal <- reactive({DataSetPieces() %>% dplyr::filter(shot.outcome.name == 'Blocked')})
+    Goal <- reactive({DataSetPieces() %>% dplyr::filter(shot.outcome.name == 'Goal')})
     Blocked <- reactive({DataSetPieces() %>% dplyr::filter(shot.outcome.name == 'Blocked')})
     OffTarget <- reactive({DataSetPieces() %>% dplyr::filter(shot.outcome.name == 'Off T')})
     Saved <- reactive({DataSetPieces() %>% dplyr::filter(shot.outcome.name == 'Saved')})
+    Other <- reactive({DataSetPieces() %>% dplyr::filter(shot.outcome.name == 'Wayward'|
+                                                           shot.outcome.name == 'Post'|
+                                                           shot.outcome.name == 'Saved to Post')})
     
     xG <- reactive({DataSetPieces() %>% dplyr::select(shot.statsbomb_xg)})
     xpectedGoal <- round(sum(xG()), digits = 2)
@@ -441,80 +489,272 @@ server <- function(input, output, session){
   }
   
   
-  shot_map_corner_left_def <- reactive(ShotMap('against', 'Left', 'From Corner'))
+  shot_map_corner_left_def <- reactive(ShotMap('Against', 'Left', 'From Corner'))
   
-  shot_map_corner_right_def <- reactive(ShotMap('against', 'Right', 'From Corner'))
+  shot_map_corner_right_def <- reactive(ShotMap('Against', 'Right', 'From Corner'))
   
-  shot_map_ifl_def <- reactive(ShotMap('against', 'Free Kick', 'From Free Kick'))
+  shot_map_ifl_def <- reactive(ShotMap('Against', 'Free Kick', 'From Free Kick'))
   
-  shot_map_corner_left_off <- reactive(ShotMap('for', 'Left', 'From Corner'))
+  shot_map_corner_left_off <- reactive(ShotMap('For', 'Left', 'From Corner'))
   
-  shot_map_corner_right_off <- reactive(ShotMap('for', 'Right', 'From Corner'))
+  shot_map_corner_right_off <- reactive(ShotMap('For', 'Right', 'From Corner'))
   
-  shot_map_ifl_off <- reactive(ShotMap('for', 'Free Kick', 'From Free Kick'))
+  shot_map_ifl_off <- reactive(ShotMap('For', 'Free Kick', 'From Free Kick'))
   
   
   
   #Map des tirs provenant de corners défensifs
-  output$shot_corner_left_def <- renderPlotly({shot_map_corner_left_def()
-  })
+  output$shot_corner_left_def <- renderPlotly({shot_map_corner_left_def()})
   
-  output$shot_corner_rigth_def <- renderPlotly({shot_map_corner_right_def()
-  })
+  output$shot_corner_rigth_def <- renderPlotly({shot_map_corner_right_def()})
   
   #Map des tirs provenant des coup franc indirect défentsifs
-  output$shot_ifk_def <- renderPlotly({shot_map_ifl_def()
-  })
+  output$shot_ifk_def <- renderPlotly({shot_map_ifl_def()})
   
   #Map des tirs provenant des cornes offensifs
-  output$shot_corner_left_off <- renderPlotly({shot_map_corner_left_off()
-  })
+  output$shot_corner_left_off <- renderPlotly({shot_map_corner_left_off()})
   
-  output$shot_corner_rigth_off <- renderPlotly({shot_map_corner_right_off()
-  })
+  output$shot_corner_rigth_off <- renderPlotly({shot_map_corner_right_off()})
   
   #Map des tirs provenant de coup franc indirect offensifs
-  output$shot_ifk_off <- renderPlotly({shot_map_ifl_off()
+  output$shot_ifk_off <- renderPlotly({shot_map_ifl_off()})
+  
+  
+  
+  
+  AllTeams <- StatsBombData %>% dplyr::select(team.name) %>% dplyr::distinct()
+  
+  Index <- data.frame(index = as.factor(1:nrow(AllTeams)))
+  
+  ShotEvents <- reactive({
+    StatsBombData %>%
+      dplyr::select(match_id, pass.type.name, possession_team.name, team.name, type.name, 
+                    shot.type.name, shot.statsbomb_xg, play_pattern.name)
   })
+  
+  InfosMatch <- reactive({
+    Matches %>%
+      dplyr::select(match_id, match_date, home_team.home_team_name, away_team.away_team_name, match_date)
+  })
+  
+  ShotTeams <- reactive({
+    ShotEvents() %>%
+      dplyr::left_join(InfosMatch()) %>%
+      dplyr::mutate(team_vs.name = ifelse(team.name == home_team.home_team_name, 
+                                          away_team.away_team_name, home_team.home_team_name))
+  })
+  
+  xgcolors <- c('#de262a', '#f2323c', '#fd4968', '#fe618c', '#fb6d9c', '#f981b5', '#f4a2d8', '#f3ace1', '#f2b5e8', '#f1baed',
+                '#fdc0ef', '#ceb0e5', '#9e90d1', '#8380c9', '#6f7ac4', '#6174bc', '#536baf', '#385691', '#28477e', '#06013f')
+  
+  comparaison_team <- function(TeamName, PassType){
+    
+    PassTypeTeam <- reactive({
+      ShotTeams() %>%
+        dplyr::filter(pass.type.name == PassType) %>%
+        dplyr::group_by(team.name) %>%
+        dplyr::count(team.name)
+    })
+    
+    ExpectedGoal <- reactive({
+      ShotTeams() %>%
+        dplyr::filter(type.name == 'Shot') %>%
+        dplyr::filter(shot.type.name != 'Penalty' | is.na(shot.type.name)) %>%
+        dplyr::filter(play_pattern.name == paste0('From ', PassType)) %>%
+        dplyr::group_by(team.name) %>%
+        dplyr::summarise(sum.xG = sum(shot.statsbomb_xg, na.rm = T))
+    })
+    
+    xG <- reactive({
+      PassTypeTeam() %>%
+        dplyr::left_join(ExpectedGoal()) %>%
+        dplyr::mutate(xG = sum.xG/n) %>%
+        dplyr::arrange(desc(xG)) %>%
+        dplyr::bind_cols(Index)
+    })
+    
+    plot_ly(xG(), x = ~xG, y = ~reorder(team.name, xG), type = 'bar', 
+            color = ~index, colors = xgcolors,
+            marker = list(line = list(color = 'white', width = 1))) %>%
+      layout(
+        xaxis = list(title = 'Expected Goals/Indirect Free Kick', tickangle = -45, color = 'white', showgrid = FALSE),
+        yaxis = list(title = 'Team', color = 'white', showgrid = FALSE),
+        showlegend = FALSE,
+        shapes = list(
+          list(
+            type = 'line',
+            x0 = 0.05,
+            x1 = 0.05,
+            y0 = 0,
+            #y1 = xGmax,
+            line = list(color = '#d5d5d5', width = 1, dash = 'dash')
+          )
+        ),
+        plot_bgcolor = '#8A1538',
+        paper_bgcolor = '#8A1538'
+      ) %>%
+      add_annotations(
+        text = 'League Average xG/Indirect Free Kick',
+        x = 0.05,
+        #y = xGmax + 0.1,
+        showarrow = FALSE,
+        font = list(color = 'white')
+      )
+    
+    
+  } 
+  
+  
+  comparaison_ifk_defff <- reactive(comparaison_team(TeamName = 'team_vs.name', 'Free Kick'))
+  
+  comparaison_ifk_offf <- reactive(comparaison_team(TeamName = 'team.name', 'Free Kick'))
+  
+  comparaison_corner_defff <- reactive(comparaison_team(TeamName = 'team_vs.name', 'Corner'))
+  
+  comparaison_corner_offf <- reactive(comparaison_team(TeamName = 'team.name', 'Corner'))
+  
+  
+  
+  #Histogramme des xG par coup franc indirect défensif
+  output$comparaison_ifk_def <- renderPlotly({comparaison_ifk_defff()})
+  
+  #Histogramme des xG par coup franc indirect offensif
+  output$comparaison_ifk_off <- renderPlotly({comparaison_ifk_offf()})
+  
+  #Histogramme des xG par corner défensif
+  output$comparaison_corner_def <- renderPlotly({comparaison_corner_defff()})
+  
+  #Histogramme des xG par corner offensif
+  output$comparaison_corner_off <- renderPlotly({comparaison_corner_offf()})
+  
+  
+  
+  
+  
+  
+  TeamName <- reactive({
+    StatsBombData %>%
+      dplyr::select(team.id, team.name) %>%
+      dplyr::distinct()
+  })
+  
+  TeamId <- reactive({
+    get.minutesplayed(StatsBombData) %>%
+      dplyr::select(player.id, team.id) %>%
+      dplyr::distinct() %>%
+      dplyr::left_join(TeamName())
+  })
+  
+  minutesplayed <- reactive({
+    get.minutesplayed(StatsBombData) %>%
+      dplyr::select(player.id, team.id, MinutesPlayed) %>%
+      dplyr::group_by(player.id, team.id) %>%
+      dplyr::mutate(MinutesPlayed = sum(MinutesPlayed)) %>%
+      dplyr::distinct()
+  })
+  
+  Aerial <- reactive({
+    StatsBombData %>%
+      dplyr::filter(miscontrol.aerial_won == T | pass.aerial_won == T |
+                      shot.aerial_won == T | clearance.aerial_won == T |
+                      duel.type.name == 'Aerial Lost')
+  })
+  
+  AerialLost <- reactive({
+    Aerial() %>%
+      dplyr::filter(duel.type.name == 'Aerial Lost') %>%
+      dplyr::group_by(player.name, player.id) %>%
+      count(player.name)
+  })
+  
+  AerialWon <- reactive({
+    Aerial() %>%
+      dplyr::filter(miscontrol.aerial_won == T | pass.aerial_won == T |
+                      shot.aerial_won == T | clearance.aerial_won == T) %>%
+      dplyr::group_by(player.name) %>%
+      count(player.name)
+  })
+  
+  AerialDuels <- reactive({
+    AerialWon() %>%
+      dplyr::full_join(AerialLost(), by = 'player.name') %>%
+      dplyr::mutate(AerialWon = ifelse(is.na(n.x), 0, n.x)) %>%
+      dplyr::mutate(AerialLost = ifelse(is.na(n.y), 0, n.y)) %>%
+      dplyr::mutate(WinPercentage = (AerialWon / (AerialLost + AerialWon))) %>%
+      dplyr::left_join(minutesplayed(), by = 'player.id') %>%
+      dplyr::mutate(AerialWonGame = (AerialWon / MinutesPlayed * 90)) %>%
+      dplyr::filter(MinutesPlayed >= 90) %>%
+      dplyr::select(player.name, AerialWon, WinPercentage, player.id, MinutesPlayed) %>%
+      dplyr::arrange(AerialWon) %>%
+      dplyr::left_join(TeamId(), by = 'player.id') %>%
+      dplyr::select(player.name, team.name, AerialWon, WinPercentage, MinutesPlayed) %>%
+      dplyr::filter(team.name == input$Team)
+  })
+  
+  TeamPlayers <- reactive({
+    AerialDuels() %>%
+      dplyr::select(player.name) %>%
+      dplyr::distinct()
+  })
+  
+  IndexPlayer <- reactive(data.frame(index = as.factor(1:nrow(TeamPlayers()))))
+  
+  AerialDuelsTeam <- reactive({
+    AerialDuels() %>%
+      dplyr::bind_cols(IndexPlayer())
+  })
+  
+  
+  
+  AerialWonRank <- function(data){
+    plot_ly(AerialDuelsTeam(), x = ~AerialWon, y = ~reorder(player.name, AerialWon), type = 'bar', 
+            color = ~IndexPlayer, colors = xgcolors,
+            marker = list(line = list(color = 'white', width = 1))) %>%
+      layout(
+        xaxis = list(title = 'Aerial Duels Won', tickangle = -45, color = 'white', showgrid = FALSE),
+        yaxis = list(title = 'Team', color = 'white', showgrid = FALSE),
+        showlegend = FALSE,
+        shapes = list(
+          list(
+            type = 'line',
+            x0 = 0.05,
+            x1 = 0.05,
+            y0 = 0,
+            #y1 = xGmax,
+            line = list(color = '#d5d5d5', width = 1, dash = 'dash')
+          )
+        ),
+        plot_bgcolor = '#8A1538',
+        paper_bgcolor = '#8A1538'
+      ) %>%
+      add_annotations(
+        text = 'Aerial Duels Won',
+        x = 0.05,
+        #y = xGmax + 0.1,
+        showarrow = FALSE,
+        font = list(color = 'white')
+      )
+    
+    
+    
+  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+##shinyApp(ui, server)
 
 
 

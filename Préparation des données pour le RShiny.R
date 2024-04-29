@@ -201,11 +201,11 @@ CornerMap <- function(Goal, Shot, Other, Which){
     hide_legend() %>%
     add_paths(y=108-10*cos(seq(-0.3*pi,0.3*pi,length.out=30)), 
               x=40-10*sin(seq(-0.3*pi,0.3*pi,length.out=30)), color = I('black'), type = 'scatter', showlegend = FALSE) %>%
-    plotly::add_trace(x = .5, y = 126, mode = 'text', type = 'scatter', text = 'player', textposition = 'middle right', textfont = list(color = 'red', size = 22), showlegend = FALSE) %>%
-    plotly::add_trace(x = .5, y = 123, mode = 'text', type = 'scatter', text = paste0('Team', ', ', 'CountryName'), textposition = 'middle right', textfont = list(size = 15), showlegend = FALSE) %>%
-    plotly::add_trace(x = .5, y = 121, mode = 'text', type = 'scatter', text = paste0('CompetitionName', ' ', 'SeasonName'), textposition = 'middle right', textfont = list(size = 15), showlegend = FALSE) %>%
+    plotly::add_trace(x = .5, y = 126, mode = 'text', type = 'scatter', text = 'player', textposition = 'middle right', textfont = list(color = 'red', size = 22, family = 'Verdana'), showlegend = FALSE) %>%
+    plotly::add_trace(x = .5, y = 123, mode = 'text', type = 'scatter', text = paste0('Team', ', ', 'CountryName'), textposition = 'middle right', textfont = list(size = 15, family = 'Verdana'), showlegend = FALSE) %>%
+    plotly::add_trace(x = .5, y = 121, mode = 'text', type = 'scatter', text = paste0('CompetitionName', ' ', 'SeasonName'), textposition = 'middle right', textfont = list(size = 15, family = 'Verdana'), showlegend = FALSE) %>%
     plotly::add_trace(x = 80, y = 126, mode = 'text', type = 'scatter', text = paste0('Exp. goals: ', 'xg_goal', ' (', 'goal_test', ' goals /', 'shot_test', ' shots)')
-                      , textposition = 'middle left' , textfont = list(size = 20), showlegend = FALSE)
+                      , textposition = 'middle left' , textfont = list(size = 20, family = 'Verdana'), showlegend = FALSE)
 }
 
 CornerMap(DefLeftGoal, DefLeftShot, DefLeftOther, 'Against')
@@ -840,7 +840,7 @@ plot_ly(AerialDuelsTeam, x = ~AerialWon, y = ~reorder(player.name, AerialWon), t
         marker = list(line = list(color = 'white', width = 1))) %>%
   layout(
     xaxis = list(title = 'Aerial Duels Won', tickangle = -45, color = 'white', showgrid = FALSE),
-    yaxis = list(title = 'Team', color = 'white', showgrid = FALSE),
+    #yaxis = list(title = 'Team', color = 'white', showgrid = FALSE),
     showlegend = FALSE,
     shapes = list(
       list(

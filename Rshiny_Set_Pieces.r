@@ -124,23 +124,23 @@ server <- function(input, output, session){
   library(openxlsx)
   library(StatsBombR)
   
-  FreeCompetitions <- FreeCompetitions()
-  
-  Comp <- FreeCompetitions() %>%
-    dplyr::filter(country_name == 'International' 
-                  & competition_name == 'FIFA World Cup'
-                  & season_name == '2022')
-  
-  Matches <- FreeMatches(Comp)
-  
-  StatsBombData <- get.matchFree(Matches[1,])
-  
-  for(i in seq(from = 2, to = nrow(Matches))){
-    StatsBombData <- dplyr::bind_rows(StatsBombData, get.matchFree(Matches[i,]))
-  }
-  
-  StatsBombData = allclean(StatsBombData)
-  StatsBombData = cleanlocations(StatsBombData)
+  #FreeCompetitions <- FreeCompetitions()
+  #
+  #Comp <- FreeCompetitions() %>%
+  #  dplyr::filter(country_name == 'International' 
+  #                & competition_name == 'FIFA World Cup'
+  #                & season_name == '2022')
+  #
+  #Matches <- FreeMatches(Comp)
+  #
+  #StatsBombData <- get.matchFree(Matches[1,])
+  #
+  #for(i in seq(from = 2, to = nrow(Matches))){
+  #  StatsBombData <- dplyr::bind_rows(StatsBombData, get.matchFree(Matches[i,]))
+  #}
+  #
+  #StatsBombData = allclean(StatsBombData)
+  #StatsBombData = cleanlocations(StatsBombData)
   
   
   
@@ -177,7 +177,8 @@ server <- function(input, output, session){
       dplyr::filter(pass.type.name == 'Corner') %>%
       dplyr::filter(pass.outcome.name != 'Out' | is.na(pass.outcome.name)) %>%
       dplyr::left_join(NextCorner(), by = c('match_id', 'index')) %>%
-      dplyr::mutate(FirstBall = ifelse(team.name == next_team.name, 'Won', 'Lost'))
+      dplyr::mutate(FirstBall = ifelse(team.name == next_team.name, 'Won', 'Lost'),
+                    ColorCorner = ifelse(team.name == next_team.name, 'dc2228', '3371ac'))
   })
   
   TeamDefendingCorner <- reactive({
@@ -241,43 +242,27 @@ server <- function(input, output, session){
     
     plot_ly() %>%
       add_trace(
-        data = Goal(),
         type = "scatter",
-        mode = "markers",
-        y = ~pass.end_location.x,
-        x = ~pass.end_location.y,
-        color = ~FirstBall,
-        colors = c("#dc2228", "#3371ac"),
-        marker = list(size = 10, symbol = 'circle'),
-        legendgroup = "Goal"
+        mode = "none",
+        fill = "toself",
+        fillcolor = "#d3ffda",
+        y = c(70, 70, 120, 120, 70),
+        x = c(0, 80, 80, 0, 0),
+        showlegend = FALSE
       ) %>%
       add_trace(
-        data = Shot(),
         type = "scatter",
-        mode = "markers",
-        y = ~pass.end_location.x,
-        x = ~pass.end_location.y,
-        color = ~FirstBall,
-        colors = c("#dc2228", "#3371ac"),
-        marker = list(size = 8, symbol = 'circle-open', line = list(color = ~FirstBall,
-                                                                    colors = c("#dc2228", "#3371ac"), width = 3)),
-        legendgroup = "Shot"
-      ) %>%
-      add_trace(
-        data = Other(),
-        type = "scatter",
-        mode = "markers",
-        y = ~pass.end_location.x,
-        x = ~pass.end_location.y,
-        color = ~FirstBall,
-        colors = c("#dc2228", "#3371ac"),
-        marker = list(size = 10, symbol = 'square'),
-        legendgroup = "Other"
+        mode = "none",
+        fill = "toself",
+        fillcolor = "#d3ffda",
+        y = c(120, 120, 121, 121, 120),
+        x = c(36, 40, 40, 36, 36),
+        showlegend = FALSE
       ) %>%
       layout(
         xaxis = list(range = c(0, 90), showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE, title = F),
         yaxis = list(range = c(59, 129), showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE, title = F)
-        , plot_bgcolor = '#d3ffda'
+        #, plot_bgcolor = '#d3ffda'
       ) %>%
       #add_trace(
       #  type = "scatter",
@@ -306,11 +291,47 @@ server <- function(input, output, session){
       hide_legend() %>%
       add_paths(y=108-10*cos(seq(-0.3*pi,0.3*pi,length.out=30)), 
                 x=40-10*sin(seq(-0.3*pi,0.3*pi,length.out=30)), color = I('black'), type = 'scatter', showlegend = FALSE) %>%
-      plotly::add_trace(x = .5, y = 126, mode = 'text', type = 'scatter', text = 'player', textposition = 'middle right', textfont = list(color = 'red', size = 22), showlegend = FALSE) %>%
-      plotly::add_trace(x = .5, y = 123, mode = 'text', type = 'scatter', text = paste0('Team', ', ', 'CountryName'), textposition = 'middle right', textfont = list(size = 15), showlegend = FALSE) %>%
-      plotly::add_trace(x = .5, y = 121, mode = 'text', type = 'scatter', text = paste0('CompetitionName', ' ', 'SeasonName'), textposition = 'middle right', textfont = list(size = 15), showlegend = FALSE) %>%
-      plotly::add_trace(x = 80, y = 126, mode = 'text', type = 'scatter', text = paste0('Exp. goals: ', 'xg_goal', ' (', 'goal_test', ' goals /', 'shot_test', ' shots)')
-                        , textposition = 'middle left' , textfont = list(size = 20), showlegend = FALSE)
+      plotly::add_trace(x = .5, y = 126, mode = 'text', type = 'scatter', text = paste0('Corners ', WhichTeam, ' ', input$Team), textposition = 'middle right', textfont = list(color = 'red', size = 22, family = 'Verdana'), showlegend = FALSE) %>%
+      plotly::add_trace(x = .5, y = 123, mode = 'text', type = 'scatter', text = paste0(Where, ' corners'), textposition = 'middle right', textfont = list(size = 15, family = 'Verdana', showlegend = FALSE)) %>%
+      plotly::add_trace(x = .5, y = 121, mode = 'text', type = 'scatter', text = paste0('CompetitionName', ' ', 'SeasonName'), textposition = 'middle right', textfont = list(size = 15, family = 'Verdana'), showlegend = FALSE) %>%
+      #plotly::add_trace(x = 80, y = 126, mode = 'text', type = 'scatter', text = paste0('Exp. goals: ', 'xg_goal', ' (', 'goal_test', ' goals /', 'shot_test', ' shots)')
+      #                  , textposition = 'middle left' , textfont = list(size = 20, family = 'Futura-Book'), showlegend = FALSE) %>%
+      add_trace(
+        data = Other(),
+        type = "scatter",
+        mode = "markers",
+        y = ~pass.end_location.x,
+        x = ~pass.end_location.y,
+        #colors = c("#dc2228", "#3371ac"),
+        marker = list(size = 10, symbol = 'circle',
+        color = ~ColorCorner),
+        legendgroup = "Other"
+      ) %>%
+      add_trace(
+        data = Shot(),
+        type = "scatter",
+        mode = "markers",
+        y = ~pass.end_location.x,
+        x = ~pass.end_location.y,
+        #colors = c("#dc2228", "#3371ac"),
+        marker = list(size = 8, symbol = 'square', 
+        color = ~ColorCorner,
+                      line = list(color = ~~ColorCorner,       
+                                  #colors = c("#dc2228", "#3371ac"),                          
+                                  width = 3)),
+        legendgroup = "Shot"
+      ) %>%
+      add_trace(
+        data = Goal(),
+        type = "scatter",
+        mode = "markers",
+        y = ~pass.end_location.x,
+        x = ~pass.end_location.y,
+        #colors = c("#dc2228", "#3371ac"),
+        marker = list(size = 10, symbol = 'square-open',
+        color = ~ColorCorner),
+        legendgroup = "Goal"
+      )
   }
   
   corner_left_def_map <- reactive(CornerMap('against', 'Left'))
@@ -412,7 +433,7 @@ server <- function(input, output, session){
                                                            shot.outcome.name == 'Saved to Post')})
     
     xG <- reactive({DataSetPieces() %>% dplyr::select(shot.statsbomb_xg)})
-    xpectedGoal <- round(sum(xG()), digits = 2)
+    ExpectedGoal <- round(sum(xG()), digits = 2)
     
     ShotNb <- count(DataSetPieces())
     GoalSelect <- reactive({DataSetPieces() %>% dplyr::filter(shot.outcome.name == 'Goal')})
@@ -420,20 +441,29 @@ server <- function(input, output, session){
     
     
     plot_ly() %>%
+      add_trace(
+        type = "scatter",
+        mode = "none",
+        fill = "toself",
+        fillcolor = "#d3ffda",
+        y = c(70, 70, 120, 120, 70),
+        x = c(0, 80, 80, 0, 0),
+        showlegend = FALSE
+      ) %>%
+      add_trace(
+        type = "scatter",
+        mode = "none",
+        fill = "toself",
+        fillcolor = "#d3ffda",
+        y = c(120, 120, 121, 121, 120),
+        x = c(36, 40, 40, 36, 36),
+        showlegend = FALSE
+      ) %>%
       layout(
         xaxis = list(range = c(0, 90), showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE, title = F),
         yaxis = list(range = c(59, 129), showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE, title = F)
-        , plot_bgcolor = '#d3ffda'
+        #, plot_bgcolor = '#d3ffda'
       ) %>%
-      #add_trace(
-      #  type = "scatter",
-      #  mode = "none",
-      #  fill = "toself",
-      #  fillcolor = "#d3ffda",
-      #  y = c(70, 70, 120, 120, 70),
-      #  x = c(0, 80, 80, 0, 0),
-      #  showlegend = FALSE
-      #) %>%
       plotly::add_trace(y = c(70, 70, 120, 120, 70),
                         x = c(0, 80, 80, 0, 0),
                         mode = "lines",
@@ -452,23 +482,23 @@ server <- function(input, output, session){
       hide_legend() %>%
       add_paths(y=108-10*cos(seq(-0.3*pi,0.3*pi,length.out=30)), 
                 x=40-10*sin(seq(-0.3*pi,0.3*pi,length.out=30)), color = I('black'), type = 'scatter', showlegend = FALSE) %>%
-      plotly::add_trace(x = .5, y = 126, mode = 'text', type = 'scatter', text = 'player', textposition = 'middle right', textfont = list(color = 'red', size = 22), showlegend = FALSE) %>%
-      plotly::add_trace(x = .5, y = 123, mode = 'text', type = 'scatter', text = paste0('Team', ', ', 'CountryName'), textposition = 'middle right', textfont = list(size = 15), showlegend = FALSE) %>%
-      plotly::add_trace(x = .5, y = 121, mode = 'text', type = 'scatter', text = paste0('CompetitionName', ' ', 'SeasonName'), textposition = 'middle right', textfont = list(size = 15), showlegend = FALSE) %>%
-      plotly::add_trace(x = 80, y = 126, mode = 'text', type = 'scatter', text = paste0('Exp. goals: ', 'xg_goal', ' (', 'goal_test', ' goals /', 'shot_test', ' shots)')
-                        , textposition = 'middle left' , textfont = list(size = 20), showlegend = FALSE
-      ) %>%
-      plotly::add_trace(data = Blocked(), y = ~location.x, x = ~location.y, type = 'scatter', mode = 'markers',
-                        showlegend = FALSE 
-                        , marker = list(size = 25, color = 'LightGrey', opacity = 0.8, line = list(color = 'black', width = 1), symbol = ~formes
-                                        
-                        )
+      plotly::add_trace(x = .5, y = 126, mode = 'text', type = 'scatter', text = paste0('Shots ', WhichTeam, ' ', input$Team), textposition = 'middle right', textfont = list(color = 'red', size = 22, family = 'Verdana'), showlegend = FALSE) %>%
+      plotly::add_trace(x = .5, y = 123, mode = 'text', type = 'scatter', text = paste0('Shots ', WhichTeam, ' ', input$Team), textposition = 'middle right', textfont = list(size = 15, family = 'Verdana'), showlegend = FALSE) %>%
+      plotly::add_trace(x = .5, y = 121, mode = 'text', type = 'scatter', text = paste0('CompetitionName', ' ', 'SeasonName'), textposition = 'middle right', textfont = list(size = 15, family = 'Verdana'), showlegend = FALSE) %>%
+      plotly::add_trace(x = 80, y = 126, mode = 'text', type = 'scatter', text = paste0('Exp. goals: ', ExpectedGoal, ' (', GoalNb, ' goals /', ShotNb, ' shots)')
+                        , textposition = 'middle left' , textfont = list(size = 20, family = 'Verdana'), showlegend = FALSE
       ) %>%
       plotly::add_trace(data = OffTarget(), y = ~location.x, x = ~location.y, type = 'scatter', mode = 'markers', 
                         showlegend = FALSE
                         , marker = list(size = 25, opacity = 0.8, line = list(color = 'black', width = 1), symbol = ~formes
                                         , color = ~shot.statsbomb_xg, colorscale = shotmapxgcolors, showscale = F
                                         , cmax = 1, cmin = 0
+                        )
+      ) %>%
+      plotly::add_trace(data = Blocked(), y = ~location.x, x = ~location.y, type = 'scatter', mode = 'markers',
+                        showlegend = FALSE 
+                        , marker = list(size = 25, color = 'LightGrey', opacity = 0.8, line = list(color = 'black', width = 1), symbol = ~formes
+                                        
                         )
       ) %>%
       plotly::add_trace(data = Saved(), y = ~location.x, x = ~location.y, type = 'scatter', mode = 'markers', 
@@ -578,7 +608,7 @@ server <- function(input, output, session){
             marker = list(line = list(color = 'white', width = 1))) %>%
       layout(
         xaxis = list(title = 'Expected Goals/Indirect Free Kick', tickangle = -45, color = 'white', showgrid = FALSE),
-        yaxis = list(title = 'Team', color = 'white', showgrid = FALSE),
+        yaxis = list(title = '', color = 'white', showgrid = FALSE),
         showlegend = FALSE,
         shapes = list(
           list(
@@ -586,20 +616,21 @@ server <- function(input, output, session){
             x0 = 0.05,
             x1 = 0.05,
             y0 = 0,
-            #y1 = xGmax,
+            y1 = xGmax,
             line = list(color = '#d5d5d5', width = 1, dash = 'dash')
           )
         ),
         plot_bgcolor = '#8A1538',
         paper_bgcolor = '#8A1538'
-      ) %>%
-      add_annotations(
-        text = 'League Average xG/Indirect Free Kick',
-        x = 0.05,
-        #y = xGmax + 0.1,
-        showarrow = FALSE,
-        font = list(color = 'white')
-      )
+      ) 
+    #%>%
+    #  add_annotations(
+    #    text = 'League Average xG/Indirect Free Kick',
+    #    x = 0.05,
+    #    y = xGmax + 0.1,
+    #    showarrow = FALSE,
+    #    font = list(color = 'white')
+    #  )
     
     
   } 
@@ -706,13 +737,13 @@ server <- function(input, output, session){
   
   
   
-  AerialWonRank <- function(data){
+  AerialWonRank <- reactive({
     plot_ly(AerialDuelsTeam(), x = ~AerialWon, y = ~reorder(player.name, AerialWon), type = 'bar', 
             color = ~IndexPlayer, colors = xgcolors,
             marker = list(line = list(color = 'white', width = 1))) %>%
       layout(
         xaxis = list(title = 'Aerial Duels Won', tickangle = -45, color = 'white', showgrid = FALSE),
-        yaxis = list(title = 'Team', color = 'white', showgrid = FALSE),
+        yaxis = list(title = '', color = 'white', showgrid = FALSE),
         showlegend = FALSE,
         shapes = list(
           list(
@@ -734,19 +765,46 @@ server <- function(input, output, session){
         showarrow = FALSE,
         font = list(color = 'white')
       )
-    
-    
-    
-  }
+})
+
+  
+  WinPercentageRank <- reactive({
+    plot_ly(AerialDuelsTeam(), x = ~WinPercentage, y = ~reorder(player.name, WinPercentage), type = 'bar', 
+            color = ~IndexPlayer, colors = xgcolors,
+            marker = list(line = list(color = 'white', width = 1))) %>%
+    layout(
+      xaxis = list(title = 'Aerial Duels Won', tickangle = -45, color = 'white', showgrid = FALSE),
+      yaxis = list(title = '', color = 'white', showgrid = FALSE),
+      showlegend = FALSE,
+      shapes = list(
+        list(
+          type = 'line',
+          x0 = 0.05,
+          x1 = 0.05,
+          y0 = 0,
+          #y1 = xGmax,
+          line = list(color = '#d5d5d5', width = 1, dash = 'dash')
+        )
+      ),
+      plot_bgcolor = '#8A1538',
+      paper_bgcolor = '#8A1538'
+    ) %>%
+    add_annotations(
+      text = 'Aerial Duels Won',
+      x = 0.05,
+      #y = xGmax + 0.1,
+      showarrow = FALSE,
+      font = list(color = 'white')
+    )
+    })
   
   
   
   
   
+  output$comparaison_aerial_win <- renderPlotly(AerialWonRank())
   
-  
-  
-  
+  output$comparaison_aerial_pourc <- renderPlotly(WinPercentageRank())
   
   
   
